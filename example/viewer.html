@@ -95,6 +95,7 @@
         }
 
         function displayResult(result){
+          addTotalsHeader(result);
           addReportTable("Added Classes", result.added);
           addReportTable("Removed Classes", result.removed);
           addReportTable("Bigger Classes", result.bigger);
@@ -104,21 +105,29 @@
 
         function addReportTable(title, report){
           var tableEl = document.querySelector("#tableData");
-          var header = createTableHeaderElement(title, report.newSize, report.oldSize, report.diff);
+          var header = createTableHeaderElement(title, report.newSize, report.oldSize, report.diff, true);
           var body = createTableBodyElement(report.items);
 
           tableEl.appendChild(header);
           tableEl.appendChild(body);
         }
 
-        function createTableHeaderElement(title, newSize, oldSize, diff){
+        function addTotalsHeader(report){
+          var tableEl = document.querySelector("#tableData");
+          var header = createTableHeaderElement("Totals", report.totalNewSize, report.totalOldSize, report.totalDiff, false);
+          tableEl.appendChild(header);
+        }
+
+        function createTableHeaderElement(title, newSize, oldSize, diff, hideLink){
           var thead = document.createElement("thead");
           var tr = document.createElement("tr");
           
           var t = document.createElement("th");
           t.innerHTML = title;
 
-          createHideLink(t);
+          if(hideLink){
+            createHideLink(t);
+          }
 
           var n = document.createElement("th");
           n.innerHTML = newSize;
