@@ -23,7 +23,7 @@
           <span class="glyphicon glyphicon-cloud-upload"></span>
           <input class="form-control" id="newFileInput" type="text" placeholder="New Link Report">
           <span class="glyphicon glyphicon-chevron-left"></span>
-          <button type="button" id="diffButton" class="btn btn-success">Diff Files</button>
+          <button type="button" id="diffButton" class="btn btn-disabled" disabled>Drag files to start</button>
           <span class="glyphicon glyphicon-chevron-right"></span>
           <input class="form-control" id="oldFileInput" type="text" placeholder="Old Link Report">
           <span class="glyphicon glyphicon-cloud-upload"></span>
@@ -33,191 +33,146 @@
 
     <div class="row">
       <div class="span12">
+      <h2>Results</h2>
       <table class="table table-bordered table-hover table-striped" id="tableData">
-      <thead>
+      <thead id="mainHeader">
         <tr>
           <th>Class</th>
-          <th>New Size</th>
-          <th>Old Size</th>
-          <th>Change</th>
+          <th>Count</th>
+          <th>New Size <small>(Optimised)</small></th>
+          <th>Old Size <small>(Optimised)</small></th>
+          <th>Change <small>(Optimised)</small></th>
         </tr>
       </thead>
       </table>
+      </div>
+      <div class="span12">
+        <h2>JIRA MarkDown</h2>
+        <pre id="markdown">
+          
+        </pre>
       </div>
     </div>
 
 
     </div>
     <script type="text/javascript" src="../linkReportDiff.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
     <script>
       (function(){
         
-        function handleDragOverEvent(e) {
-          if (e.preventDefault) {
-            e.preventDefault(); // Necessary. Allows us to drop.
-          }
-          e.dataTransfer.dropEffect = 'move';
-          return false;
-        }
-        
-        function loadFile(f, cb){
-          var reader = new FileReader();
-
-          reader.onload = function(e){
-            cb(reader.result);
-          }
-          
-          reader.readAsText(f);
-        }
-        
-        function handleDropEvent(e) {
-          // this / e.target is current target element.
-          if (e.preventDefault) {
-            e.preventDefault(); // Necessary. Allows us to drop.
-          }
-
-          if (e.stopPropagation) {
-            e.stopPropagation(); // stops the browser from redirecting.
-          }
-        
-          return e.dataTransfer.files[0];
-        }    
-
-        function attachFileLoader(el, cb){
-          el.addEventListener('dragover', handleDragOverEvent, false);
-          el.addEventListener('drop', function(e){
-            var f = handleDropEvent(e);
-            loadFile(f, cb);
-            var text = f.name + " (" + Math.round(f.size / 1024) + "kb)";
-            el.value = text;
-            return false;
-          }, false);
-        }
-
         function displayResult(result){
-          addTotalsHeader(result);
-          addReportTable("Added Classes", result.added);
-          addReportTable("Removed Classes", result.removed);
-          addReportTable("Bigger Classes", result.bigger);
-          addReportTable("Smaller Classes", result.smaller);
-          addReportTable("Same Classes", result.same);
+          var tdata = $("#tableData"), theader = $("#mainHeader").detach();
+          tdata.empty();
+
+          var domElements = [theader];
+          domElements.push(createTableHeaderElement("Totals ", result.size, result.optSize, result.count, false));
+
+          $.each([
+            ["Added", result.added], 
+            ["Removed", result.removed],
+            ["Bigger", result.bigger],
+            ["Smaller", result.smaller],
+            ["Same", result.same]
+            ], function(i, item){
+              report = item[1];
+              domElements.push(createTableHeaderElement(item[0] + " Classes ", report.size, report.optSize, report.count, true));
+              domElements.push(createTableBodyElement(report.items));
+            });
+
+          tdata.append(domElements);
+          renderMarkdown();
         }
 
-        function addReportTable(title, report){
-          var tableEl = document.querySelector("#tableData");
-          var header = createTableHeaderElement(title, report.newSize, report.oldSize, report.diff, true);
-          var body = createTableBodyElement(report.items);
-
-          tableEl.appendChild(header);
-          tableEl.appendChild(body);
-        }
-
-        function addTotalsHeader(report){
-          var tableEl = document.querySelector("#tableData");
-          var header = createTableHeaderElement("Totals", report.totalNewSize, report.totalOldSize, report.totalDiff, false);
-          tableEl.appendChild(header);
-        }
-
-        function createTableHeaderElement(title, newSize, oldSize, diff, hideLink){
-          var thead = document.createElement("thead");
-          var tr = document.createElement("tr");
+        function renderMarkdown(){
+          var el = $("#markdown"), theader = $("#mainHeader"), blocks = theader.siblings("thead");
+          var headerStr = "|| " + $.map(theader.find("th"), function(th){
+            return $(th).text();
+          }).join(" | ") + " ||"
           
-          var t = document.createElement("th");
-          t.innerHTML = title;
+          var rowStr = $.map(blocks, function(head){
+            return "| " + $.map($(head).find("th"), function(th){
+              return $(th).text();
+            }).join(" | ") + " |";
+          }).join("\n");
+
+          el.text(headerStr + "\n" + rowStr);
+
+        }
+
+        function createTableHeaderElement(title, size, optSize, count, hideLink){
+          var t = $("<th/>");
 
           if(hideLink){
-            createHideLink(t);
+            $("<a href='#'></a>").text(title).click(function(e){
+              var link = $(this), tbody = link.parents("thead").next();
+              var hidden = tbody.toggleClass("hidden").hasClass("hidden");
+            }).appendTo(t);
+          } else {
+            t.text(title);
           }
 
-          var n = document.createElement("th");
-          n.innerHTML = newSize;
+          var c = $("<th/>").text(count);
+          var n = $("<th/>").text(size.new).append("<small> (" + optSize.new + ")</small>");
+          var o = $("<th/>").text(size.old).append("<small> (" + optSize.old + ")</small>");
+          var d = $("<th/>").text(size.diff).append("<small> (" + optSize.diff + ")</small>");
 
-          var o = document.createElement("th");
-          o.innerHTML = oldSize;
-
-          var d = document.createElement("th");
-          d.innerHTML = diff;
-
-          tr.appendChild(t);
-          tr.appendChild(n);
-          tr.appendChild(o);
-          tr.appendChild(d);
-          thead.appendChild(tr);
-          return thead;
-        }
-
-        function createHideLink(tEl){
-          var a = document.createElement("a");
-          a.innerHTML = " (hide)";
-
-          a.addEventListener("click", function(e){
-            var tHead = a.parentNode.parentNode.parentNode;
-            var tBody = tHead.nextSibling;
-            
-            if(tBody.className == "hidden"){
-              tBody.className = "";
-              a.innerHTML = " (hide)"
-            }else{
-              tBody.className = "hidden"
-              a.innerHTML = " (show)"
-            }
-
-          }, false);
-
-          tEl.appendChild(a);
+          return $("<thead/>").append($("<tr/>").append(t, c, n, o, d));
         }
 
         function createTableBodyElement(items){
-          var tbody = document.createElement("tbody");
+          return $("<tbody class='hidden'/>").append($.map(items, function(item, i){
+            return $("<tr/>").append(
+                      $("<td>").text(item.name),
+                      $("<td>"),
+                      $("<td>").text(item.size.new).append("<small> (" + item.optSize.new + ")</small>"),
+                      $("<td>").text(item.size.old).append("<small> (" + item.optSize.old + ")</small>"),
+                      $("<td>").text(item.size.diff).append("<small> (" + item.optSize.diff + ")</small>")
+                    );
+          }));
+        }
 
-          var item = null;
-          for(var i = 0, l = items.length; i<l; i++){
-            item = items[i];
-            var tr = document.createElement("tr");
+        var diffButton = $("#diffButton"), diffConfig = { newFileInput:null, oldFileInput:null};
 
-            var name = createTD(), o = createTD(), n = createTD(), diff = createTD();
+        $("#newFileInput, #oldFileInput").bind("dragover", function(e){
+          e.preventDefault();
+          e.originalEvent.dataTransfer.dropEffect = 'move';
+        }).bind("drop", function(e){
+            e.preventDefault(); // Necessary. Allows us to drop.
+            var f = e.originalEvent.dataTransfer.files[0];
 
-            name.innerHTML = item.name;
-            o.innerHTML = item.newSize;
-            n.innerHTML = item.oldSize;
-            diff.innerHTML = item.diff;
+            var input = $(this), reader = new FileReader();
+            
+            reader.onload = function(e){
+              var xml = $.parseXML(reader.result);
+              diffConfig[input.attr("id")] = LinkReportDiff.getScriptDescriptors(xml);
+              diffButton.trigger("updateLabel");
+            };
+            reader.readAsText(f);
 
-            tr.appendChild(name);
-            tr.appendChild(o);
-            tr.appendChild(n);
-            tr.appendChild(diff);
+            input.val(f.name + " (" + Math.round(f.size / 1024) + "kb)");
+        });
 
-            tbody.appendChild(tr);
+        diffButton.click(function(e){
+          displayResult(LinkReportDiff.compareDescriptors(diffConfig.newFileInput, diffConfig.oldFileInput));
+        }).bind("updateLabel", function(e){
+          var hasNew = diffConfig.newFileInput != null;
+          var hasOld = diffConfig.oldFileInput != null;
+
+          if(hasNew && hasOld){
+            diffButton
+              .text("Diff Link Reports")
+              .removeClass("btn-disabled")
+              .addClass("btn-success")
+              .removeAttr("disabled");
+          } else if(hasNew) {
+            diffButton
+              .text("View Link Report")
+              .removeClass("btn-disabled")
+              .addClass("btn-success")
+              .removeAttr("disabled");
           }
-
-          return tbody;
-        }
-
-        function createTD(){
-            return document.createElement("td");
-        }
-
-        function setupDOMHandlers(newFileDropEl, oldFileDropEl, diffTriggerEl){
-          var diffConfig = {
-            newData:"",
-            oldData:""
-          };
-          attachFileLoader(newFileDropEl, function(data){
-            diffConfig.newData = data;
-          });
-          attachFileLoader(oldFileDropEl, function(data){
-            diffConfig.oldData = data;
-          });
-          diffTriggerEl.addEventListener("click", function(e){
-            displayResult(LinkReportDiff.diffTextSources(diffConfig.newData, diffConfig.oldData));
-          }, false);
-        }
-
-        var newFileEl = document.querySelector("#newFileInput");
-        var oldFileEl = document.querySelector("#oldFileInput");
-        var diffBtn = document.querySelector("#diffButton");
-
-        setupDOMHandlers(newFileEl, oldFileEl, diffBtn);
+        });
         
       }());
     </script>
